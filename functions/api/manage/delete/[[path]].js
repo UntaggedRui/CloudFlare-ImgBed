@@ -5,11 +5,13 @@ import { getDatabase } from '../../../utils/databaseAdapter.js';
 import { DiscordAPI } from '../../../utils/storage/discordAPI.js';
 import { HuggingFaceAPI } from '../../../utils/storage/huggingfaceAPI.js';
 import { WebDAVAPI } from '../../../utils/storage/webdavAPI.js';
+import { deleteFromWebUploader } from '../../../utils/storage/webUploaderAPI.js';
 import {
     resolveDiscordCredentials,
     resolveHuggingFaceCredentials,
     resolveS3Credentials,
     resolveWebDAVCredentials,
+    resolveWebUploaderDeleteCredentials,
 } from '../../../utils/metadata/channelCredentials.js';
 
 // CORS 跨域响应头
@@ -168,6 +170,11 @@ async function deleteFile(env, fileId, cdnUrl, url) {
             await deleteWebDAVFile(env, img);
         }
 
+        // Web Uploader deletion is optional and must not prevent local cleanup.
+        if (img.metadata?.Channel === 'WebUploader') {
+            await deleteWebUploaderFile(env, img);
+        }
+
         // 删除数据库中的记录
         // 注意：容量统计现在由索引自动维护，删除文件后索引更新时会自动重新计算
         await db.delete(fileId);
@@ -292,6 +299,22 @@ async function deleteWebDAVFile(env, img) {
         return await webdavAPI.deleteFile(filePath);
     } catch (error) {
         console.error("WebDAV Delete Failed:", error);
+        return false;
+    }
+}
+
+async function deleteWebUploaderFile(env, img) {
+    try {
+        const db = getDatabase(env);
+        const credentials = await resolveWebUploaderDeleteCredentials(db, env, img.metadata);
+        if (!credentials.deleteUrl) {
+            return false;
+        }
+
+        const result = await deleteFromWebUploader(credentials, credentials.deleteKey, credentials.fileUrl);
+        return result.success;
+    } catch (error) {
+        console.error('Web Uploader Delete Failed:', error);
         return false;
     }
 }

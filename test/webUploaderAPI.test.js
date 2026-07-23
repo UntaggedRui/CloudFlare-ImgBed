@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
     extractJsonPath,
+    deleteFromWebUploader,
     normalizeJsonObject,
     resolveImageUrl,
     uploadToWebUploader,
@@ -38,6 +39,7 @@ describe('Web Uploader adapter', () => {
             url: 'https://api.example/upload',
             paramName: 'image',
             jsonPath: '0.src',
+            deleteKeyJsonPath: '0.deleteKey',
             customHeader: { Authorization: 'Bearer token', 'Content-Type': 'invalid-boundary' },
             customBody: { album: 'screenshots', options: { private: false } },
             urlPrefix: 'https://cdn.example',
@@ -52,13 +54,36 @@ describe('Web Uploader adapter', () => {
             assert.equal(init.body.get('options'), '{"private":false}');
             assert.equal(init.body.get('image').name, 'test.png');
 
-            return new Response(JSON.stringify([{ src: '/files/test.png' }]), {
+            return new Response(JSON.stringify([{ src: '/files/test.png', deleteKey: 'delete-123' }]), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
             });
         });
 
-        assert.equal(result, 'https://cdn.example/files/test.png');
+        assert.deepEqual(result, {
+            imageUrl: 'https://cdn.example/files/test.png',
+            deleteKey: 'delete-123',
+        });
+    });
+
+    it('calls an optional delete API with stored response data', async () => {
+        const result = await deleteFromWebUploader({
+            deleteUrl: 'https://s.ee/api/v1/file/delete/{deleteKey}',
+            deleteMethod: 'GET',
+            deleteHeaders: { Authorization: 'Bearer token' },
+        }, 'delete key/1', 'https://s.ee/file/example.png', async (url, init) => {
+            assert.equal(url, 'https://s.ee/api/v1/file/delete/delete%20key%2F1');
+            assert.equal(init.method, 'GET');
+            assert.equal(init.headers.get('Authorization'), 'Bearer token');
+            return new Response(JSON.stringify({ code: 0 }), { status: 200 });
+        });
+
+        assert.deepEqual(result, { attempted: true, success: true });
+    });
+
+    it('does not call a delete API when the channel has none configured', async () => {
+        const result = await deleteFromWebUploader({}, 'delete-123', 'https://img.example/file.png');
+        assert.deepEqual(result, { attempted: false, success: false });
     });
 
     it('surfaces upstream errors without accepting their body as a URL', async () => {

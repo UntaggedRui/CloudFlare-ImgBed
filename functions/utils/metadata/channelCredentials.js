@@ -4,6 +4,7 @@
  */
 import { findConfiguredChannel, loadChannelConfig } from './channelConfig.js';
 import { normalizeWebDAVHeaders } from '../storage/webdavAPI.js';
+import { normalizeJsonObject } from '../storage/webUploaderAPI.js';
 
 /* ========== 主要函数 ========== */
 
@@ -126,6 +127,31 @@ export async function resolveWebDAVCredentials(db, env, metadata = {}) {
   });
 }
 
+// Resolve optional Web Uploader delete configuration for a previously uploaded file.
+export async function resolveWebUploaderDeleteCredentials(db, env, metadata = {}) {
+  const channel = await loadConfiguredChannel(db, env, 'webuploader', metadata);
+  if (channel) {
+    return {
+      source: 'config',
+      deleteUrl: channel.deleteUrl || '',
+      deleteMethod: channel.deleteMethod || 'GET',
+      deleteHeaders: normalizeOptionalJsonObject(channel.deleteHeaders),
+      deleteBody: normalizeOptionalJsonObject(channel.deleteBody),
+      deleteKey: metadata.ExternalDeleteKey || '',
+      fileUrl: metadata.ExternalLink || '',
+    };
+  }
+
+  return missingCredentials({
+    deleteUrl: '',
+    deleteMethod: 'GET',
+    deleteHeaders: {},
+    deleteBody: {},
+    deleteKey: metadata.ExternalDeleteKey || '',
+    fileUrl: metadata.ExternalLink || '',
+  });
+}
+
 /* ========== 关键函数 ========== */
 
 // 统一加载上传配置并定位 metadata 对应渠道
@@ -142,4 +168,12 @@ function missingCredentials(fields) {
     source: 'missing',
     ...fields,
   };
+}
+
+function normalizeOptionalJsonObject(value) {
+  try {
+    return normalizeJsonObject(value, 'Web Uploader delete configuration');
+  } catch {
+    return {};
+  }
 }

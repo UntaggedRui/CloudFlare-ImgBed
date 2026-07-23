@@ -334,6 +334,19 @@ export async function getUploadConfig(db, env) {
         } catch {
             web.customBody = {}
         }
+        try {
+            web.deleteHeaders = normalizeJsonObject(web.deleteHeaders, 'Delete headers')
+        } catch {
+            web.deleteHeaders = {}
+        }
+        try {
+            web.deleteBody = normalizeJsonObject(web.deleteBody, 'Delete body')
+        } catch {
+            web.deleteBody = {}
+        }
+        web.deleteUrl = web.deleteUrl || ''
+        web.deleteMethod = web.deleteMethod || 'GET'
+        web.deleteKeyJsonPath = web.deleteKeyJsonPath || ''
         webUploaderChannels.push(web)
     }
 

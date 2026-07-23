@@ -4,6 +4,11 @@ const BLOCKED_MULTIPART_HEADERS = new Set([
     'host',
 ]);
 
+const BLOCKED_DELETE_HEADERS = new Set([
+    'content-length',
+    'host',
+]);
+
 export function normalizeJsonObject(value, fieldName) {
     if (value === undefined || value === null || value === '') {
         return {};
@@ -94,8 +99,8 @@ export async function uploadToWebUploader(file, channel, fetchImpl = fetch) {
     }
 
     let imageUrl = responseText;
+    let responseBody;
     if (channel?.jsonPath) {
-        let responseBody;
         try {
             responseBody = JSON.parse(responseText);
         } catch {
@@ -104,13 +109,89 @@ export async function uploadToWebUploader(file, channel, fetchImpl = fetch) {
         imageUrl = extractJsonPath(responseBody, channel.jsonPath);
     }
 
-    return resolveImageUrl(imageUrl, apiUrl, channel?.urlPrefix || '');
+    return {
+        imageUrl: resolveImageUrl(imageUrl, apiUrl, channel?.urlPrefix || ''),
+        deleteKey: channel?.deleteKeyJsonPath
+            ? extractJsonPath(responseBody ?? tryParseJson(responseText), channel.deleteKeyJsonPath)
+            : undefined,
+    };
+}
+
+export async function deleteFromWebUploader(channel, deleteKey, fileUrl, fetchImpl = fetch) {
+    const deleteUrlTemplate = String(channel?.deleteUrl || '').trim();
+    if (!deleteUrlTemplate) {
+        return { attempted: false, success: false };
+    }
+
+    if (deleteUrlTemplate.includes('{deleteKey}') && !deleteKey) {
+        throw new Error('delete API requires a delete key, but none was stored for this file');
+    }
+
+    const method = String(channel?.deleteMethod || 'GET').trim().toUpperCase();
+    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+        throw new Error('delete method must be GET, POST, PUT, PATCH, or DELETE');
+    }
+
+    const values = {
+        deleteKey: deleteKey || '',
+        fileUrl: fileUrl || '',
+    };
+    const apiUrl = assertHttpUrl(replaceTemplateValues(deleteUrlTemplate, values, true), 'Delete API URL');
+    const customHeaders = normalizeJsonObject(channel?.deleteHeaders, 'Delete headers');
+    const customBody = normalizeJsonObject(channel?.deleteBody, 'Delete body');
+    const headers = new Headers();
+
+    for (const [name, value] of Object.entries(customHeaders)) {
+        if (!BLOCKED_DELETE_HEADERS.has(name.toLowerCase())) {
+            headers.set(name, replaceTemplateValues(String(value), values));
+        }
+    }
+
+    const request = { method, headers };
+    if (Object.keys(customBody).length > 0) {
+        if (method === 'GET') {
+            throw new Error('GET delete requests cannot include a custom body');
+        }
+        if (!headers.has('Content-Type')) {
+            headers.set('Content-Type', 'application/json');
+        }
+        request.body = JSON.stringify(replaceTemplateValues(customBody, values));
+    }
+
+    const response = await fetchImpl(apiUrl, request);
+    if (!response.ok) {
+        const detail = (await response.text()).slice(0, 500).trim();
+        throw new Error(`delete API returned ${response.status}${detail ? `: ${detail}` : ''}`);
+    }
+
+    return { attempted: true, success: true };
 }
 
 function serializeFormValue(value) {
     if (value === undefined || value === null) return '';
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
+}
+
+function tryParseJson(value) {
+    try {
+        return JSON.parse(value);
+    } catch {
+        return undefined;
+    }
+}
+
+function replaceTemplateValues(value, values, encode = false) {
+    if (typeof value === 'string') {
+        return value.replace(/\{(deleteKey|fileUrl)\}/g, (_, key) => encode ? encodeURIComponent(values[key]) : values[key]);
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => replaceTemplateValues(item, values, encode));
+    }
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceTemplateValues(item, values, encode)]));
+    }
+    return value;
 }
 
 function isAbsoluteUrl(value) {

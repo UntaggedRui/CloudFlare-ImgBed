@@ -892,11 +892,14 @@ async function uploadFileToWebUploader(context, fullId, metadata, returnLink) {
 
     const file = formdata.get('file');
     try {
-        const externalLink = await uploadToWebUploader(file, channel);
+        const { imageUrl: externalLink, deleteKey } = await uploadToWebUploader(file, channel);
 
         metadata.Channel = 'WebUploader';
         metadata.ChannelName = channel.name;
         metadata.ExternalLink = externalLink;
+        if (deleteKey !== undefined && deleteKey !== null && String(deleteKey).trim()) {
+            metadata.ExternalDeleteKey = String(deleteKey);
+        }
 
         if (securityConfig.upload?.moderate?.enabled) {
             metadata.Label = await moderateContent(env, externalLink);
