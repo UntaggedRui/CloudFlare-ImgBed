@@ -64,6 +64,7 @@ export async function fetchUploadConfig(env, context = null) {
         settings.discord.channels = settings.discord.channels.filter((channel) => channel.enabled);
         settings.huggingface.channels = settings.huggingface.channels.filter((channel) => channel.enabled);
         settings.webdav.channels = settings.webdav.channels.filter((channel) => channel.enabled);
+        settings.webuploader.channels = settings.webuploader.channels.filter((channel) => channel.enabled);
 
         // 根据容量限制过滤渠道（可用于 R2、S3、WebDAV）
         // 需要 context 来调用 getIndexMeta
@@ -83,7 +84,8 @@ export async function fetchUploadConfig(env, context = null) {
             s3: { channels: [] },
             discord: { channels: [] },
             huggingface: { channels: [] },
-            webdav: { channels: [] }
+            webdav: { channels: [] },
+            webuploader: { channels: [] }
         };
     }
 }

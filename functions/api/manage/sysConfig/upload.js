@@ -1,5 +1,6 @@
 import { getDatabase } from '../../../utils/databaseAdapter.js';
 import { normalizeWebDAVHeaders } from '../../../utils/storage/webdavAPI.js';
+import { normalizeJsonObject } from '../../../utils/storage/webUploaderAPI.js';
 
 export async function onRequest(context) {
     // 上传设置相关，GET方法读取设置，POST方法保存设置
@@ -316,12 +317,39 @@ export async function getUploadConfig(db, env) {
     webdav.loadBalance = webdavLoadBalance
 
 
+    // =====================读取自定义 Web 图床渠道配置=====================
+    const webuploader = {}
+    const webUploaderChannels = []
+    webuploader.channels = webUploaderChannels
+
+    for (const web of settingsKV.webuploader?.channels || []) {
+        web.id = webUploaderChannels.length + 1
+        try {
+            web.customHeader = normalizeJsonObject(web.customHeader, 'Custom headers')
+        } catch {
+            web.customHeader = {}
+        }
+        try {
+            web.customBody = normalizeJsonObject(web.customBody, 'Custom body')
+        } catch {
+            web.customBody = {}
+        }
+        webUploaderChannels.push(web)
+    }
+
+    webuploader.loadBalance = settingsKV.webuploader?.loadBalance || {
+        enabled: false,
+        channels: [],
+    }
+
+
     settings.telegram = telegram
     settings.cfr2 = cfr2
     settings.s3 = s3
     settings.discord = discord
     settings.huggingface = huggingface
     settings.webdav = webdav
+    settings.webuploader = webuploader
 
     return settings;
 }

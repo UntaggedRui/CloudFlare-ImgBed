@@ -170,6 +170,7 @@ export async function getPageConfig(db, env) {
                 { label: 'Discord', value: 'discord' },
                 { label: 'HuggingFace', value: 'huggingface' },
                 { label: 'WebDAV', value: 'webdav' },
+                { label: 'Web Uploader', value: 'webuploader' },
             ],
             placeholder: 'telegram',
             category: '客户端设置',

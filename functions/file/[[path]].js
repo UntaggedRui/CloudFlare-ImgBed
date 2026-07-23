@@ -108,7 +108,7 @@ export async function onRequest(context) {  // Contents of context object
     }
 
     /* 外链渠道 */
-    if (imgRecord.metadata?.Channel === 'External') {
+    if (imgRecord.metadata?.Channel === 'External' || imgRecord.metadata?.Channel === 'WebUploader') {
         // 直接重定向到外链
         return Response.redirect(imgRecord.metadata?.ExternalLink, 302);
     }

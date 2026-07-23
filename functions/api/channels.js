@@ -62,6 +62,10 @@ export async function onRequest(context) {
             webdav: uploadConfig.webdav.channels.map(ch => ({
                 name: ch.name,
                 type: 'WebDAV'
+            })),
+            webuploader: uploadConfig.webuploader.channels.map(ch => ({
+                name: ch.name,
+                type: 'WebUploader'
             }))
         };
 
